@@ -1,0 +1,92 @@
+blueprint:
+  domain: automation
+  name: Voice - News Headlines - Local Assist Blueprint
+  author: ChatGPT
+  description: |
+    # Request the latest News headlines fully locally
+
+    This blueprint allows Assist to read the latest headlines from rss feedparser sensor.
+
+    ### Blueprint setup
+
+    #### Required
+    * Set the sensor entity that contains the news feed.
+
+    #### Optional
+    * Change or translate the trigger phrases.
+    * Choose how many headlines to read out.
+
+  input:
+    news_entity:
+      name: News Entity
+      selector:
+        entity:
+          filter:
+            domain: sensor
+    trigger_phrases:
+      name: Trigger phrases
+      description: "Sentences you can say to trigger the news request"
+      selector:
+        text:
+          multiline: false
+          multiple: true
+      default:
+        - "what('s| is) the news"
+        - "give me the headlines"
+        - "tell me the news"
+        - "read me the latest news"
+        - "what('s| is) happening in the world"
+        - "what('s| is) the latest headlines"
+    max_headlines:
+      name: Maximum headlines
+      description: "How many headlines to read"
+      selector:
+        number:
+          min: 1
+          max: 10
+      default: 5
+    response_no_data:
+      name: Response when no headlines are available
+      selector:
+        text:
+          multiline: true
+      default: "Sorry, I couldn’t find any news right now."
+    response_template:
+      name: Response when headlines are found
+      selector:
+        text:
+          multiline: true
+      default: |
+        {% set entries = state_attr(news_entity, 'entries') %}
+        {% if entries %}
+          {% set headlines = entries[:max_headlines] %}
+          Here are the latest headlines:
+          {% for item in headlines %}
+            - {{ item.title }}
+          {% endfor %}
+        {% else %}
+          {{ response_no_data }}
+        {% endif %}
+
+triggers:
+  - trigger: conversation
+    command: !input trigger_phrases
+
+variables:
+  news_entity: !input news_entity
+  max_headlines: !input max_headlines
+  response_no_data: !input response_no_data
+  response_template: !input response_template
+
+actions:
+  - variables:
+      entries: "{{ state_attr(news_entity, 'entries') or [] }}"
+  - choose:
+      - conditions: "{{ entries | count > 0 }}"
+        sequence:
+          - set_conversation_response: "{{ response_template }}"
+      - conditions: []
+        sequence:
+          - set_conversation_response: "{{ response_no_data }}"
+
+mode: single

@@ -1,0 +1,127 @@
+blueprint:
+  name: Voice - News Headlines - Full LLM Script
+  author: ChatGPT
+  description: |
+    # Request the latest news headlines by use of an LLM
+
+    ### Blueprint setup
+
+    #### Required
+    * Select a news sensor entity that has an `entries` attribute (like an RSS feed).
+
+    #### Optional
+    * Adjust the prompts for the LLM.
+    * Choose how many headlines to read out.
+
+    #### Note
+    * Give the script a clear description. This will be used by the LLM to understand it should use this script for news.
+    * **Make sure to expose the script to Assist after saving**.
+
+    #### Example for script description:
+    `Fetches the latest news headlines. Can answer questions like: what’s the news, what are today’s top stories, give me the latest headlines.`
+
+    ### Usage
+    You can request the news in any way, using natural language.
+    Unless configured otherwise, the LLM will respond in the same language as the command.
+
+    #### Examples
+    ```
+    What’s the latest news?
+    Give me today’s top headlines
+    Tell me the news this morning
+    ```
+
+  domain: script
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    news_settings:
+      name: News settings
+      icon: mdi:rss
+      description: Select the sensor that contains the news entries
+      input:
+        news_entity:
+          name: News entity
+          description: Sensor with an `entries` attribute containing news items
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain:
+                    - sensor
+        max_headlines:
+          name: Maximum headlines
+          description: How many headlines to return
+          selector:
+            number:
+              min: 1
+              max: 10
+          default: 3
+    prompt_settings:
+      name: Prompt settings for the LLM
+      icon: mdi:robot
+      description: Prompts that help guide the LLM to parse the request.
+      collapsed: true
+      input:
+        headline_prompt:
+          name: Headline prompt
+          description: How the LLM should extract and present headlines
+          selector:
+            text:
+              multiline: true
+          default: |
+            Always provide a list of headlines extracted from the news entries.
+            Do not make up information. Use the titles from the `entries` attribute.
+mode: parallel
+max_exceeded: silent
+description: |
+  Gets the latest news headlines from a sensor with `entries`.
+
+fields:
+  start_date:
+    name: Start Date
+    description: "Optional: Limit results to entries published on or after this date (YYYY-MM-DD). Leave blank for latest headlines."
+    selector:
+      date:
+    required: false
+  limit:
+    name: Limit
+    description: "Optional: Override max_headlines from inputs. Number of headlines to return."
+    selector:
+      number:
+        min: 1
+        max: 10
+    required: false
+
+sequence:
+  - variables:
+      version: 20250829
+      news_entity: !input news_entity
+      max_headlines: !input max_headlines
+      limit: "{{ limit | default(max_headlines) }}"
+      start_date: "{{ start_date | default('') }}"
+      entries: "{{ state_attr(news_entity, 'entries') or [] }}"
+  - variables:
+      filtered_entries: >
+        {% if start_date %}
+          {% set d = as_datetime(start_date) %}
+          {% set items = entries | selectattr('published', 'defined') | selectattr('published', '>=', d) | list %}
+          {{ items[:limit] }}
+        {% else %}
+          {{ entries[:limit] }}
+        {% endif %}
+  - if: "{{ filtered_entries | count == 0 }}"
+    then:
+      - variables:
+          response:
+            error: "Sorry, I couldn’t find any news headlines right now."
+      - stop: No headlines available
+        response_variable: response
+  - variables:
+      response: >
+        Here are the latest {{ filtered_entries | count }} news headlines:
+        {% for item in filtered_entries %}
+        - {{ item.title }}
+        {% endfor %}
+  - stop: ""
+    response_variable: response
