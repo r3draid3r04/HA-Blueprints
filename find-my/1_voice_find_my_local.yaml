@@ -133,14 +133,14 @@ action:
     then:
       - service: input_boolean.turn_on
         target:
-          entity_id: "{{ trigger_boolean }}"
+          entity_id: !input trigger_boolean
 
   # Main notification loop (runs for both voice and boolean triggers)
   - repeat:
       sequence:
         # Only send notification if trigger boolean is still on
         - condition: state
-          entity_id: "{{ trigger_boolean }}"
+          entity_id: !input trigger_boolean
           state: "on"
           
         # Send the notification
@@ -169,10 +169,10 @@ action:
         - condition: or
           conditions:
             - condition: state
-              entity_id: "{{ ack_boolean }}"
+              entity_id: !input ack_boolean
               state: "on"
             - condition: state
-              entity_id: "{{ trigger_boolean }}"
+              entity_id: !input trigger_boolean
               state: "off"
 
   # Wait for notification actions (with timeout)
@@ -197,15 +197,15 @@ action:
         sequence:
           - service: input_boolean.turn_on
             target:
-              entity_id: "{{ ack_boolean }}"
+              entity_id: !input ack_boolean
           - service: input_boolean.turn_off
             target:
-              entity_id: "{{ trigger_boolean }}"
+              entity_id: !input trigger_boolean
           - delay:
               seconds: 2
           - service: input_boolean.turn_off
             target:
-              entity_id: "{{ ack_boolean }}"
+              entity_id: !input ack_boolean
               
       # Snooze - stop this alarm for 5 minutes
       - conditions:
@@ -214,10 +214,10 @@ action:
         sequence:
           - service: input_boolean.turn_off
             target:
-              entity_id: "{{ trigger_boolean }}"
+              entity_id: !input trigger_boolean
           - delay:
               minutes: 5
           # Optionally re-enable after snooze (uncomment next lines if desired)
           # - service: input_boolean.turn_on
           #   target:
-          #     entity_id: "{{ trigger_boolean }}"
+          #     entity_id: !input trigger_boolean
