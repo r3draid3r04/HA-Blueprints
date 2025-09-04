@@ -3,56 +3,78 @@ blueprint:
   description: |
     Find my phone system for one user/device.
     Notification shows once, sound repeats until acknowledged.
+    Supports voice commands and manual triggers.
   domain: automation
   author: r3draid3r04
 
   input:
     user_name:
       name: User Name
+      description: Name of the user (used in notifications and voice commands)
       selector:
         text: {}
+
     trigger_boolean:
       name: Trigger Input Boolean
+      description: Input boolean that triggers the phone alarm
       selector:
         entity:
           domain: input_boolean
+
     mobile_target:
       name: Mobile Notify Service
+      description: Mobile app notification service (e.g., notify.mobile_app_phone_name)
       selector:
         text: {}
+
     notification_title:
       name: Notification Title
       default: "📱 Lost Phone – Please Help!"
       selector:
         text: {}
+
     notification_message:
       name: Notification Message
       default: "This phone belongs to {user_name}. If found, please return it to the owner."
       selector:
         text: {}
+
     ack_boolean:
       name: Acknowledge Input Boolean
+      description: Input boolean that stops all alarms when toggled on (can be shared across users)
       selector:
         entity:
           domain: input_boolean
+
     repeat_delay:
       name: Repeat Delay (seconds)
+      description: Delay between repeated sound alerts if not acknowledged
       default: 30
       selector:
         number:
           min: 5
           max: 300
           unit_of_measurement: seconds
+
     enable_voice_commands:
       name: Enable Voice Commands
+      description: Enable voice trigger phrases for this user
       default: true
       selector:
         boolean: {}
+
     voice_phrases:
       name: Voice Trigger Phrases
+      description: |
+        Voice phrases to trigger this user's phone alarm.
+        Enter one phrase per line. Leave empty to disable voice commands.
       default: |
         find {user_name} phone
         find {user_name}'s phone
+        where is {user_name} phone
+        where is {user_name}'s phone
+        call {user_name} phone
+        call {user_name}'s phone
       selector:
         text:
           multiline: true
@@ -85,30 +107,30 @@ variables:
     {% endif %}
 
 trigger:
+  # Voice triggers (only if enabled and phrases exist)
   - platform: conversation
     command: "{{ voice_phrases_list if enable_voice_commands and voice_phrases_list|length > 0 else ['never_match_dummy_phrase'] }}"
-    id: voice_trigger
+    id: "voice_trigger"
+
+  # Input boolean trigger
   - platform: state
     entity_id: !input trigger_boolean
     to: "on"
-    id: boolean_trigger
+    id: "boolean_trigger"
 
 condition: []
 
 action:
-  # Handle voice trigger
+  # Voice trigger sets the trigger boolean
   - if:
       - condition: trigger
-        id: voice_trigger
+        id: "voice_trigger"
     then:
       - service: input_boolean.turn_on
         target:
           entity_id: !input trigger_boolean
-      - service: conversation.process
-        data:
-          text: "Locating {{ user_name }}'s phone now!"
 
-  # Send notification once
+  # Send notification once (message + buttons)
   - service: !input mobile_target
     data:
       title: "{{ notification_title }}"
@@ -117,13 +139,15 @@ action:
         actions:
           - action: "ACKNOWLEDGE_PHONE_ALARM"
             title: "I Have It"
+          - action: "SNOOZE_PHONE_ALARM"
+            title: "Snooze 5 min"
         push:
           sound:
             name: default
             critical: 1
             volume: 1
 
-  # Loop sound separately
+  # Repeat sound only until acknowledged
   - repeat:
       sequence:
         - condition: state
@@ -140,27 +164,57 @@ action:
         - delay:
             seconds: "{{ repeat_delay }}"
       until:
-        - condition: state
-          entity_id: !input ack_boolean
-          state: "on"
+        - condition: or
+          conditions:
+            - condition: state
+              entity_id: !input ack_boolean
+              state: "on"
+            - condition: state
+              entity_id: !input trigger_boolean
+              state: "off"
 
-  # Wait for acknowledge
+  # Wait for notification action
   - wait_for_trigger:
       - platform: event
         event_type: mobile_app_notification_action
         event_data:
           action: "ACKNOWLEDGE_PHONE_ALARM"
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "SNOOZE_PHONE_ALARM"
+    timeout: "01:00:00"
     continue_on_timeout: false
 
-  # Stop alarm
-  - service: input_boolean.turn_off
-    target:
-      entity_id: !input trigger_boolean
-  - service: input_boolean.turn_on
-    target:
-      entity_id: !input ack_boolean
-  - delay:
-      seconds: 2
-  - service: input_boolean.turn_off
-    target:
-      entity_id: !input ack_boolean
+  # Handle actions
+  - choose:
+      # Acknowledge - stop all alarms
+      - conditions:
+          - condition: template
+            value_template: "{{ wait.trigger.event.data.action == 'ACKNOWLEDGE_PHONE_ALARM' }}"
+        sequence:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: !input ack_boolean
+          - service: input_boolean.turn_off
+            target:
+              entity_id: !input trigger_boolean
+          - delay:
+              seconds: 2
+          - service: input_boolean.turn_off
+            target:
+              entity_id: !input ack_boolean
+
+      # Snooze - stop alarm for 5 minutes
+      - conditions:
+          - condition: template
+            value_template: "{{ wait.trigger.event.data.action == 'SNOOZE_PHONE_ALARM' }}"
+        sequence:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: !input trigger_boolean
+          - delay:
+              minutes: 5
+          - service: input_boolean.turn_on
+            target:
+              entity_id: !input trigger_boolean
