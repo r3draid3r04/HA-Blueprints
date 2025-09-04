@@ -110,26 +110,29 @@ sequence:
                   {{ is_state(user.trigger_boolean, 'on') }}
                 {% endfor %}
               sequence:
-                {% for user in users %}
-                - choose:
-                    - conditions:
-                        - condition: state
-                          entity_id: "{{ user.trigger_boolean }}"
-                          state: "on"
-                      sequence:
-                        - service: "{{ user.mobile_target }}"
-                          data:
-                            title: "{{ user.notification_title }}"
-                            message: "{{ user.notification_message | replace('{{name}}', user.name) }}"
-                            data:
-                              push:
-                                sound:
-                                  name: default
-                                  critical: 1
-                                  volume: 1
-                              actions:
-                                - action: "ACKNOWLEDGE_ALARM"
-                                  title: "I Have It"
+                - variables:
+                    users: !input users
+                - repeat:
+                    for_each: "{{ users }}"
+                    sequence:
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ is_state(item.trigger_boolean, 'on') }}"
+                            sequence:
+                              - service: "{{ item.mobile_target }}"
+                                data:
+                                  title: "{{ item.notification_title }}"
+                                  message: "{{ item.notification_message | replace('{{name}}', item.name) }}"
+                                  data:
+                                    push:
+                                      sound:
+                                        name: default
+                                        critical: 1
+                                        volume: 1
+                                    actions:
+                                      - action: "ACKNOWLEDGE_ALARM"
+                                        title: "I Have It"
                 {% endfor %}
         - delay: "{{ repeat_delay }}"
       until:
