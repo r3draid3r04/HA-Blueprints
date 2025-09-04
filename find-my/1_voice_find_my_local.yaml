@@ -3,7 +3,6 @@ blueprint:
   description: |
     Trigger “find my phone” notifications for multiple users via input_booleans or voice commands.
     Each user has an input_boolean and a mobile app target. Notifications repeat until acknowledged.
-
   domain: automation
   author: r3draid3r04
 
@@ -39,6 +38,12 @@ blueprint:
               selector:
                 text: {}
 
+    ack_boolean:
+      name: Acknowledge Input Boolean
+      description: Input boolean that stops all alarms when toggled on
+      selector:
+        entity:
+          domain: input_boolean
 
     repeat_delay:
       name: Repeat Delay
@@ -47,20 +52,13 @@ blueprint:
       selector:
         text: {}
 
-    ack_boolean:
-      name: Acknowledge Input Boolean
-      description: Input boolean that stops all alarms when toggled on
-      selector:
-        entity:
-          domain: input_boolean
-
     trigger_phrases:
       name: Voice Trigger Phrases
       description: Sentences you can say to trigger a specific user's phone alarm
       selector:
         object:
           multiple: true
-          properties:
+          fields:
             phrase:
               name: Phrase
               selector:
@@ -112,35 +110,27 @@ actions:
   # Repeat notifications until acknowledged
   - repeat:
       sequence:
-        - choose:
-            - conditions: |
-                "{% for user in users %}
-                  {{ is_state(user.trigger_boolean, 'on') }}
-                {% endfor %}"
-              sequence:
-                - variables:
-                    users: !input users
-                - repeat:
-                    for_each: "{{ users }}"
+        - repeat:
+            for_each: "{{ users }}"
+            sequence:
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ is_state(item.trigger_boolean, 'on') }}"
                     sequence:
-                      - choose:
-                          - conditions:
-                              - condition: template
-                                value_template: "{{ is_state(item.trigger_boolean, 'on') }}"
-                            sequence:
-                              - service: "{{ item.mobile_target }}"
-                                data:
-                                  title: "{{ item.notification_title }}"
-                                  message: "{{ item.notification_message | replace('{{name}}', item.name) }}"
-                                  data:
-                                    push:
-                                      sound:
-                                        name: default
-                                        critical: 1
-                                        volume: 1
-                                    actions:
-                                      - action: "ACKNOWLEDGE_ALARM"
-                                        title: "I Have It"
+                      - service: "{{ item.mobile_target }}"
+                        data:
+                          title: "{{ item.notification_title }}"
+                          message: "{{ item.notification_message | replace('{{name}}', item.name) }}"
+                          data:
+                            push:
+                              sound:
+                                name: default
+                                critical: 1
+                                volume: 1
+                              actions:
+                                - action: "ACKNOWLEDGE_ALARM"
+                                  title: "I Have It"
         - delay: "{{ repeat_delay }}"
       until:
         - condition: state
@@ -148,8 +138,7 @@ actions:
           state: "on"
 
   # Listen for notification button press
-  - alias: "Acknowledge Alarm"
-    wait_for_trigger:
+  - wait_for_trigger:
       - platform: event
         event_type: mobile_app_notification_action
         event_data:
