@@ -105,10 +105,10 @@ sequence:
   - repeat:
       sequence:
         - choose:
-            - conditions: >
-                {% for user in users %}
+            - conditions: |
+                "{% for user in users %}
                   {{ is_state(user.trigger_boolean, 'on') }}
-                {% endfor %}
+                {% endfor %}"
               sequence:
                 - variables:
                     users: !input users
