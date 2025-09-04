@@ -25,30 +25,33 @@ input:
   users:
     name: Users / Devices
     description: List of users with their trigger boolean and mobile notify service
-    input:
-      name:
-        name: User Name
-        selector:
-          text: {}
-      trigger_boolean:
-        name: Trigger Input Boolean
-        selector:
-          entity:
-            domain: input_boolean
-      mobile_target:
-        name: Mobile Notify Service
-        selector:
-          text: {}
-      notification_title:
-        name: Notification Title
-        default: "📱 Lost Phone – Please Help!"
-        selector:
-          text: {}
-      notification_message:
-        name: Notification Message
-        default: "This phone belongs to {{name}}. If found, please return it to the owner."
-        selector:
-          text: {}
+    selector:
+      object:
+        multiple: true
+        fields:
+          name:
+            name: User Name
+            selector:
+              text: {}
+          trigger_boolean:
+            name: Trigger Input Boolean
+            selector:
+              entity:
+                domain: input_boolean
+          mobile_target:
+            name: Mobile Notify Service
+            selector:
+              text: {}
+          notification_title:
+            name: Notification Title
+            default: "📱 Lost Phone – Please Help!"
+            selector:
+              text: {}
+          notification_message:
+            name: Notification Message
+            default: "This phone belongs to {{name}}. If found, please return it to the owner."
+            selector:
+              text: {}
   ack_boolean:
     name: Acknowledge Input Boolean
     description: Stops all alarms when pressed

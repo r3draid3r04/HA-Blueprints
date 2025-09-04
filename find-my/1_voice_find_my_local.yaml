@@ -10,11 +10,11 @@ blueprint:
   input:
     users:
       name: Users / Devices
-      description: List of users with their trigger boolean and mobile target
+      description: List of users with their trigger boolean and mobile notify service
       selector:
         object:
           multiple: true
-          properties:
+          fields:
             name:
               name: User Name
               selector:
@@ -25,7 +25,7 @@ blueprint:
                 entity:
                   domain: input_boolean
             mobile_target:
-              name: Mobile App Notify Service
+              name: Mobile Notify Service
               selector:
                 text: {}
             notification_title:
@@ -38,6 +38,7 @@ blueprint:
               default: "This phone belongs to {{name}}. If found, please return it to the owner."
               selector:
                 text: {}
+
 
     repeat_delay:
       name: Repeat Delay
