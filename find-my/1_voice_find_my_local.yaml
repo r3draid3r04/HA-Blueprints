@@ -1,9 +1,9 @@
 blueprint:
-  name: Find My Phone (Single User)
+  name: Find My Phone (Single User) - Updated
   description: |
-    Simple find my phone system for one user/device.
+    Find my phone system for one user/device.
+    Notification shows once, sound repeats until acknowledged.
     Supports voice commands and manual triggers.
-    Create multiple instances of this blueprint for multiple users.
   domain: automation
   author: r3draid3r04
 
@@ -13,26 +13,26 @@ blueprint:
       description: Name of the user (used in notifications and voice commands)
       selector:
         text: {}
-        
+
     trigger_boolean:
       name: Trigger Input Boolean
       description: Input boolean that triggers the phone alarm
       selector:
         entity:
           domain: input_boolean
-          
+
     mobile_target:
       name: Mobile Notify Service
       description: Mobile app notification service (e.g., notify.mobile_app_phone_name)
       selector:
         text: {}
-        
+
     notification_title:
       name: Notification Title
       default: "📱 Lost Phone – Please Help!"
       selector:
         text: {}
-        
+
     notification_message:
       name: Notification Message
       default: "This phone belongs to {user_name}. If found, please return it to the owner."
@@ -48,7 +48,7 @@ blueprint:
 
     repeat_delay:
       name: Repeat Delay (seconds)
-      description: Delay between repeated notifications if not acknowledged
+      description: Delay between repeated sound alerts if not acknowledged
       default: 30
       selector:
         number:
@@ -68,10 +68,6 @@ blueprint:
       description: |
         Voice phrases to trigger this user's phone alarm.
         Enter one phrase per line. Leave empty to disable voice commands.
-        Examples:
-        - find my phone
-        - where is John's phone
-        - call John's phone
       default: |
         find {user_name} phone
         find {user_name}'s phone
@@ -95,7 +91,6 @@ variables:
   repeat_delay: !input repeat_delay
   enable_voice_commands: !input enable_voice_commands
   voice_phrases_raw: !input voice_phrases
-  # Process voice phrases and replace {user_name} placeholder
   voice_phrases_list: >
     {% if enable_voice_commands and voice_phrases_raw %}
       {% set phrases = voice_phrases_raw.split('\n') %}
@@ -116,7 +111,7 @@ trigger:
   - platform: conversation
     command: "{{ voice_phrases_list if enable_voice_commands and voice_phrases_list|length > 0 else ['never_match_dummy_phrase'] }}"
     id: "voice_trigger"
-    
+
   # Input boolean trigger
   - platform: state
     entity_id: !input trigger_boolean
@@ -126,7 +121,7 @@ trigger:
 condition: []
 
 action:
-  # Handle voice trigger - turn on the trigger boolean
+  # Voice trigger sets the trigger boolean
   - if:
       - condition: trigger
         id: "voice_trigger"
@@ -135,36 +130,39 @@ action:
         target:
           entity_id: !input trigger_boolean
 
-  # Main notification loop (runs for both voice and boolean triggers)
+  # Send notification once (message + buttons)
+  - service: !input mobile_target
+    data:
+      title: "{{ notification_title }}"
+      message: "{{ notification_message.replace('{user_name}', user_name) }}"
+      data:
+        actions:
+          - action: "ACKNOWLEDGE_PHONE_ALARM"
+            title: "I Have It"
+          - action: "SNOOZE_PHONE_ALARM"
+            title: "Snooze 5 min"
+        push:
+          sound:
+            name: default
+            critical: 1
+            volume: 1
+
+  # Repeat sound only until acknowledged
   - repeat:
       sequence:
-        # Only send notification if trigger boolean is still on
         - condition: state
           entity_id: !input trigger_boolean
           state: "on"
-          
-        # Send the notification
-        - service: "{{ mobile_target }}"
+        - service: !input mobile_target
           data:
-            title: "{{ notification_title }}"
-            message: "{{ notification_message.replace('{user_name}', user_name) }}"
             data:
               push:
                 sound:
                   name: default
                   critical: 1
                   volume: 1
-                actions:
-                  - action: "ACKNOWLEDGE_PHONE_ALARM"
-                    title: "I Have It"
-                  - action: "SNOOZE_PHONE_ALARM"
-                    title: "Snooze 5 min"
-                    
-        # Wait before next iteration
         - delay:
             seconds: "{{ repeat_delay }}"
-            
-      # Continue until acknowledged or trigger turned off
       until:
         - condition: or
           conditions:
@@ -175,7 +173,7 @@ action:
               entity_id: !input trigger_boolean
               state: "off"
 
-  # Wait for notification actions (with timeout)
+  # Wait for notification action
   - wait_for_trigger:
       - platform: event
         event_type: mobile_app_notification_action
@@ -188,7 +186,7 @@ action:
     timeout: "01:00:00"
     continue_on_timeout: false
 
-  # Handle the notification action
+  # Handle actions
   - choose:
       # Acknowledge - stop all alarms
       - conditions:
@@ -206,8 +204,8 @@ action:
           - service: input_boolean.turn_off
             target:
               entity_id: !input ack_boolean
-              
-      # Snooze - stop this alarm for 5 minutes
+
+      # Snooze - stop alarm for 5 minutes
       - conditions:
           - condition: template
             value_template: "{{ wait.trigger.event.data.action == 'SNOOZE_PHONE_ALARM' }}"
@@ -217,7 +215,6 @@ action:
               entity_id: !input trigger_boolean
           - delay:
               minutes: 5
-          # Optionally re-enable after snooze (uncomment next lines if desired)
-          # - service: input_boolean.turn_on
-          #   target:
-          #     entity_id: !input trigger_boolean
+          - service: input_boolean.turn_on
+            target:
+              entity_id: !input trigger_boolean
