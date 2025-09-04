@@ -1,0 +1,163 @@
+blueprint:
+  name: Multi-User Find My Phone Alarm with Voice
+  description: |
+    Trigger “find my phone” notifications for multiple users via input_booleans or voice commands.
+    Each user has an input_boolean and a mobile app target. Notifications repeat until acknowledged.
+
+  domain: automation
+  author: r3draid3r04
+
+  input:
+    users:
+      name: Users / Devices
+      description: List of users with their trigger boolean and mobile target
+      selector:
+        object:
+          multiple: true
+          properties:
+            name:
+              name: User Name
+              selector:
+                text: {}
+            trigger_boolean:
+              name: Trigger Input Boolean
+              selector:
+                entity:
+                  domain: input_boolean
+            mobile_target:
+              name: Mobile App Notify Service
+              selector:
+                text: {}
+            notification_title:
+              name: Notification Title
+              default: "📱 Lost Phone – Please Help!"
+              selector:
+                text: {}
+            notification_message:
+              name: Notification Message
+              default: "This phone belongs to {{name}}. If found, please return it to the owner."
+              selector:
+                text: {}
+
+    repeat_delay:
+      name: Repeat Delay
+      description: Delay between repeated notifications if not acknowledged
+      default: "00:00:30"
+      selector:
+        text: {}
+
+    ack_boolean:
+      name: Acknowledge Input Boolean
+      description: Input boolean that stops all alarms when toggled on
+      selector:
+        entity:
+          domain: input_boolean
+
+    trigger_phrases:
+      name: Voice Trigger Phrases
+      description: Sentences you can say to trigger a specific user's phone alarm
+      selector:
+        object:
+          multiple: true
+          properties:
+            phrase:
+              name: Phrase
+              selector:
+                text: {}
+            user_name:
+              name: Target User
+              description: Name of the user this phrase should trigger
+              selector:
+                text: {}
+
+mode: restart
+
+triggers:
+  # Voice trigger
+  - trigger: conversation
+    command: "{{ trigger_phrases | map(attribute='phrase') | list }}"
+
+  # User input_boolean triggers
+  - platform: state
+    entity_id: "{{ users | map(attribute='trigger_boolean') | list }}"
+    to: "on"
+
+variables:
+  repeat_delay: !input repeat_delay
+  ack_boolean: !input ack_boolean
+  users: !input users
+  trigger_phrases: !input trigger_phrases
+  phrase_triggered: "{{ trigger.event.data.text if trigger.event else '' }}"
+
+actions:
+  # Map voice phrases to the correct user input_boolean
+  - choose:
+      - conditions: >
+          {% for item in trigger_phrases %}
+            {{ phrase_triggered.lower() == item.phrase.lower() }}
+          {% endfor %}
+        sequence:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: >
+                {% for user in users %}
+                  {% for item in trigger_phrases %}
+                    {% if user.name == item.user_name %}
+                      {{ user.trigger_boolean }}
+                    {% endif %}
+                  {% endfor %}
+                {% endfor %}
+
+  # Repeat notifications until acknowledged
+  - repeat:
+      sequence:
+        - choose:
+            - conditions: >
+                {% for user in users %}
+                  {{ is_state(user.trigger_boolean, 'on') }}
+                {% endfor %}
+              sequence:
+                {% for user in users %}
+                - choose:
+                    - conditions:
+                        - condition: state
+                          entity_id: "{{ user.trigger_boolean }}"
+                          state: "on"
+                      sequence:
+                        - service: "{{ user.mobile_target }}"
+                          data:
+                            title: "{{ user.notification_title }}"
+                            message: "{{ user.notification_message | replace('{{name}}', user.name) }}"
+                            data:
+                              push:
+                                sound:
+                                  name: default
+                                  critical: 1
+                                  volume: 1
+                              actions:
+                                - action: "ACKNOWLEDGE_ALARM"
+                                  title: "I Have It"
+                {% endfor %}
+        - delay: "{{ repeat_delay }}"
+      until:
+        - condition: state
+          entity_id: !input ack_boolean
+          state: "on"
+
+  # Listen for notification button press
+  - alias: "Acknowledge Alarm"
+    wait_for_trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "ACKNOWLEDGE_ALARM"
+    continue_on_timeout: false
+    timeout: "3600"
+    then:
+      - service: input_boolean.turn_on
+        target:
+          entity_id: !input ack_boolean
+      - service: input_boolean.turn_off
+        target:
+          entity_id: >
+            {{ users | map(attribute='trigger_boolean') | list | join(',') }}

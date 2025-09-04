@@ -1,7 +1,7 @@
 blueprint:
   domain: automation
   name: Voice - News Headlines - Local Assist Blueprint
-  author: ChatGPT
+  author: r3draid3r04
   description: |
     # Request the latest News headlines fully locally
 

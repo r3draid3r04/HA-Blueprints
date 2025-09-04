@@ -75,6 +75,38 @@ You can customize this configuration to use any RSS feed of your choice. The blu
 |[3: Full LLM](/documentation/news/3_voice_news_headlines_full_llm.md)|[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fr3draid3r04%2Fha-blueprints%2Fblob%2Fmain%2Fnews%2F3_voice_news_headlines_full_llm.yaml)|
 
 
+### 📱 Find My Phone
+
+These blueprints allow you to trigger "Find My Phone" notifications for multiple users through voice commands. When triggered, the target phone will receive repeated notifications with sound until acknowledged.
+
+#### Prerequisites
+- Set up mobile notifications in Home Assistant for each user
+- Create input_boolean entities for each user and one for global acknowledgment
+- Configure voice trigger phrases for each user
+
+#### Example Configuration
+
+```yaml
+# Example input_boolean configuration
+input_boolean:
+  find_kyle_phone:
+    name: Find Kyle's Phone
+    icon: mdi:cellphone-sound
+  find_amy_phone:
+    name: Find Amy's Phone
+    icon: mdi:cellphone-sound
+  find_phone_ack:
+    name: Find Phone Acknowledge
+    icon: mdi:check
+```
+
+|Option|Import Button|
+|---|---|
+|[1: Local](/documentation/find-my/1_voice_find_my_local.md)|[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fr3draid3r04%2Fha-blueprints%2Fblob%2Fmain%2Ffind-my%2F1_voice_find_my_local.yaml)|
+|2: LLM Enhanced|To be created|
+|[3: Full LLM](/documentation/find-my/3_voice_find_my_full_llm.md)|[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fr3draid3r04%2Fha-blueprints%2Fblob%2Fmain%2Ffind-my%2F3_voice_find_my_full_llm.yaml)|
+
+
 ## Planned
 
 1. Think up more!

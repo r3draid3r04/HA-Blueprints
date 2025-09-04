@@ -1,6 +1,6 @@
 blueprint:
   name: Voice - News Headlines - Full LLM Script
-  author: ChatGPT
+  author: r3draid3r04
   description: |
     # Request the latest news headlines by use of an LLM
 
