@@ -1,5 +1,5 @@
 blueprint:
-  name: Find My Phone (Single User) - Updated
+  name: Find My Phone (Single User)
   description: |
     Find my phone system for one user/device.
     Notification shows once, sound repeats until acknowledged.
