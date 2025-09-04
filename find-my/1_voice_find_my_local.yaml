@@ -3,7 +3,7 @@ blueprint:
   description: |
     Find my phone system for one user/device.
     Notification shows once, sound repeats until acknowledged.
-    Supports voice commands and manual triggers.
+    Supports voice commands and manual triggers with TTS feedback.
   domain: automation
   author: r3draid3r04
 
@@ -121,7 +121,7 @@ trigger:
 condition: []
 
 action:
-  # Voice trigger sets the trigger boolean
+  # Voice trigger sets the trigger boolean and responds
   - if:
       - condition: trigger
         id: "voice_trigger"
@@ -129,8 +129,11 @@ action:
       - service: input_boolean.turn_on
         target:
           entity_id: !input trigger_boolean
+      - service: conversation.process
+        data:
+          text: "Locating {{ user_name }}'s phone now!"
 
-  # Send notification once (message + buttons)
+  # Send notification once (message + acknowledge button)
   - service: !input mobile_target
     data:
       title: "{{ notification_title }}"
@@ -139,8 +142,6 @@ action:
         actions:
           - action: "ACKNOWLEDGE_PHONE_ALARM"
             title: "I Have It"
-          - action: "SNOOZE_PHONE_ALARM"
-            title: "Snooze 5 min"
         push:
           sound:
             name: default
@@ -173,22 +174,17 @@ action:
               entity_id: !input trigger_boolean
               state: "off"
 
-  # Wait for notification action
+  # Wait for notification action (acknowledge)
   - wait_for_trigger:
       - platform: event
         event_type: mobile_app_notification_action
         event_data:
           action: "ACKNOWLEDGE_PHONE_ALARM"
-      - platform: event
-        event_type: mobile_app_notification_action
-        event_data:
-          action: "SNOOZE_PHONE_ALARM"
     timeout: "01:00:00"
     continue_on_timeout: false
 
-  # Handle actions
+  # Handle acknowledge action
   - choose:
-      # Acknowledge - stop all alarms
       - conditions:
           - condition: template
             value_template: "{{ wait.trigger.event.data.action == 'ACKNOWLEDGE_PHONE_ALARM' }}"
@@ -204,17 +200,3 @@ action:
           - service: input_boolean.turn_off
             target:
               entity_id: !input ack_boolean
-
-      # Snooze - stop alarm for 5 minutes
-      - conditions:
-          - condition: template
-            value_template: "{{ wait.trigger.event.data.action == 'SNOOZE_PHONE_ALARM' }}"
-        sequence:
-          - service: input_boolean.turn_off
-            target:
-              entity_id: !input trigger_boolean
-          - delay:
-              minutes: 5
-          - service: input_boolean.turn_on
-            target:
-              entity_id: !input trigger_boolean
